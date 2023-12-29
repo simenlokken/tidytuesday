@@ -1,0 +1,211 @@
+---
+title: "Crop Yields"
+author: "Simen Løkken"
+format: html
+editor: visual
+---
+
+## Set environment and load packages
+
+```{r setup, include=FALSE}
+
+library(knitr)
+library(tidyverse)
+
+knitr::opts_chunk$set(
+  cache = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  echo = TRUE,
+  dpi = 300
+)
+
+knitr::opts_knit$set(
+  root.dir = "C:/Users/simen/Desktop/tidytuesday/2020/global_crop_yields"
+)
+```
+
+## Prepare data
+
+```{r}
+
+# Load data
+
+key_crop_yields <- 
+  read_csv(
+    "https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-09-01/key_crop_yields.csv"
+    )
+
+land_use <- 
+  read_csv(
+    "https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-09-01/land_use_vs_yield_change_in_cereal_production.csv"
+    )
+
+# Clean names
+
+key_crop_yields <- key_crop_yields |> 
+  janitor::clean_names()
+
+land_use <- land_use |> 
+  janitor::clean_names()
+```
+
+```{r}
+
+# Create a vector of the 12 countries with the highest population
+
+top_countries <- land_use |> 
+  filter(!is.na(code)) |> 
+  filter(year >= 1980) |>
+  filter(entity != "World") |> 
+  group_by(entity) |> 
+  filter(year == max(year)) |>
+  ungroup() |> 
+  slice_max(total_population_gapminder, n = 12) |> 
+  pull(entity)
+  
+# Filter on >= 1980, only entities with a code (i.e., countries)
+
+yields_tidy <- key_crop_yields |> 
+  filter(!is.na(code)) |> 
+  filter(year >= 1980)
+
+# Pivot data and filter out on the top 12 countries
+
+yields_tidy <- yields_tidy |> 
+  pivot_longer(
+    c(
+      wheat_tonnes_per_hectare,
+      potatoes_tonnes_per_hectare,
+      barley_tonnes_per_hectare
+    ),
+    names_to = "crop",
+    values_to = "yield"
+  ) |>
+  mutate(
+    crop = str_remove(
+      crop,
+      "_tonnes_per_hectare"
+    )
+  ) |>
+  filter(
+    entity %in% top_countries, !is.na(yield)
+  ) |> 
+  select(
+    entity,
+    code,
+    year,
+    crop,
+    yield
+  )
+```
+
+## Analyses
+
+### Exploratory analysis
+
+```{r}
+
+# Capitalize first letter of all character strings in crop column
+
+yields_tidy <- yields_tidy |> 
+  mutate(
+    crop = str_to_title(crop)
+  )
+
+yields_tidy |> 
+  ggplot(
+    aes(
+      x = year,
+      y = yield,
+      color = crop
+    ),
+    alpha = 0.7,
+    size = 1.2
+  ) +
+  geom_line() +
+  facet_wrap(~ entity) +
+  labs(
+    x = NULL,
+    y = "Crop yields (tonnes per hectare)",
+    color = "Crop",
+    title = "Barley, potato and wheat yield from 1980-2021",
+    subtitle = "Data from the twelve most populous countries in the world"
+  ) +
+  theme_light() +
+  theme(
+    panel.grid.minor = element_blank(),
+    legend.title = element_blank()
+  ) +
+  scale_color_brewer(
+    palette = "Set1"
+  )
+
+ggsave(
+  "pot_bar_whe_yield_1980_2021.jpg",
+  dpi = 300,
+  height = 6,
+  width = 9
+)
+```
+
+### Modelling
+
+```{r}
+
+yields_tidy <- yields_tidy |> 
+  nest(yields = c(year, yield)) |> 
+    mutate(
+      model = map(yields, ~ lm(yield ~ year, data = .x)),
+      coefs = map(model, coef)
+    )
+
+slopes <- yields_tidy |> 
+  mutate(
+    coefs = map(model, tidy)
+  ) |> 
+  unnest(coefs) |> 
+  filter(term == "year")
+
+slopes |> 
+  ggplot(
+    aes(
+      y = p.value,
+      x = estimate,
+      color = entity
+    )
+  ) +
+  geom_point(
+    alpha = 0.7,
+    size = 2.5
+  ) +
+  geom_vline(
+    xintercept = 0,
+    lty = 2,
+    size = 1.5,
+    color = "gray50"
+  ) +
+  facet_wrap(~ crop) +
+  scale_y_log10() +
+  labs(
+    title = "Linear models of year on barley, wheat and potato yield",
+    subtitle = "Based on data from 1850-2021",
+    x = "Linear model slope (in tonnes per hectare)",
+    y = "P value (log10)",
+    color = NULL
+    ) +
+  theme(
+    panel.grid.minor = element_blank()
+  ) +
+  scale_color_brewer(
+    palette = "Set3"
+  ) +
+  theme_light()
+
+ggsave(
+  "pot_bar_wheat_1850_2021_lin_mod.jpg",
+  dpi = 300,
+  height = 5,
+  width = 8
+)
+```
