@@ -189,7 +189,7 @@ slopes |>
   scale_y_log10() +
   labs(
     title = "Linear models of year on barley, wheat and potato yield",
-    subtitle = "Based on data from 1850-2021",
+    subtitle = "Based on data from 1980-2021",
     x = "Linear model slope (in tonnes per hectare)",
     y = "P value (log10)",
     color = NULL
@@ -203,7 +203,7 @@ slopes |>
   theme_light()
 
 ggsave(
-  "pot_bar_wheat_1850_2021_lin_mod.jpg",
+  "pot_bar_wheat_1980_2021_lin_mod.jpg",
   dpi = 300,
   height = 5,
   width = 8
