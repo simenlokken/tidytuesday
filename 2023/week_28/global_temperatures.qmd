@@ -1,0 +1,242 @@
+---
+title: "Global Temperatures"
+author: "Simen Løkken"
+format: html
+editor: visual
+---
+
+## Set environment and load packages
+
+```{r setup, include=FALSE}
+
+library(knitr)
+library(tidyverse)
+library(tidytuesdayR)
+
+knitr::opts_chunk$set(
+  cache = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  echo = TRUE,
+  dpi = 300
+)
+
+knitr::opts_knit$set(
+  root.dir = "C:/Users/simen/Desktop/tidytuesday/2023/week_28/"
+)
+```
+
+## Prepare data
+
+```{r}
+
+# Load data
+
+tuesdata <- tidytuesdayR::tt_load(2023, week = 28)
+global_temps <- tuesdata$global_temps
+
+# Clean data
+
+global_temps <- global_temps |> 
+  janitor::clean_names()
+
+# Pivot
+
+global_temps <- global_temps |> 
+    pivot_longer(
+        c(jan:dec),
+        names_to = "month",
+        values_to = "temperature"
+    ) |> 
+    select(
+      year, 
+      month, 
+      temperature
+    ) |> 
+  mutate(
+    month = (str_to_title(month))
+  )
+
+# Order months
+
+month_order <- c(
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun", 
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+)
+
+global_temps <- global_temps |> 
+  mutate(
+    month = factor(month, levels = month_order)
+  )
+```
+
+## Analyses
+
+### Exploratory analysis
+
+```{r}
+
+# Deviation in degrees Celsius as a function of year
+
+global_temps |> 
+  ggplot(
+    aes(
+      x = year,
+      y = temperature
+    )
+  ) +
+  geom_point(
+    size = 1.5,
+    alpha = 0.7,
+    show.legend = F
+  ) +
+  facet_wrap(~ month) +
+  theme_light() +
+  theme(
+    panel.grid.minor = element_blank()
+  ) +
+  labs(
+    x = NULL,
+    y = "Deviation from 1950-1981 mean (Celsius)"
+  )
+```
+
+### Modelling
+
+```{r}
+
+# Model the increase in temperature linearly
+
+global_temps_lm <- global_temps |> 
+  group_by(month) |> 
+  nest() |> 
+  mutate(
+    model = map(data, ~ lm(temperature ~ year, data = .x))
+  ) |> 
+  ungroup()
+
+global_temps_lm <- global_temps_lm |> 
+  mutate(
+    coef = map(model, broom::tidy)
+  ) |> 
+  unnest(coef) |> 
+  filter(
+    term == "year"
+  )
+
+# Model the increase in temperature with a quadratic term
+
+global_temp_quad <- global_temps |> 
+  group_by(month) |> 
+  nest() |> 
+  mutate(
+    model = map(data, ~ lm(temperature ~ poly(year, 2, raw = TRUE), data = .x))
+  )
+
+global_temp_quad <- global_temp_quad |>
+  mutate(
+    coef = map(model, broom::tidy)
+  ) |> 
+  unnest(coef) |> 
+  select(
+    term,
+    estimate
+  )
+
+# Pivot wider
+
+global_temp_quad <- global_temp_quad |> 
+  pivot_wider(
+    names_from = term,
+    values_from = estimate
+  ) |> 
+  rename(
+    intercept = "(Intercept)",
+    year = "poly(year, 2, raw = TRUE)1",
+    year_2 = "poly(year, 2, raw = TRUE)2"
+  ) |> 
+  ungroup()
+```
+
+```{r}
+
+# Plot the estimate for each month
+
+global_temps_lm |> 
+  ggplot(
+    aes(
+      x = estimate,
+      y = p.value,
+      color = month
+    )
+  ) +
+  geom_point(
+    size = 2.5,
+    alpha = 0.7
+  ) +
+  geom_vline(
+    xintercept = 0,
+    lty = 2,
+    size = 1.2
+  ) +
+  theme_light() +
+  scale_y_log10() +
+  labs(
+    x = "Beta estimate (linear model slope)",
+    y = "P value (log 10)",
+    color = NULL
+  ) +
+  theme(
+    panel.grid.minor = element_blank()
+  )
+```
+
+```{r}
+
+# Plot the quadratic function for each month
+
+ggplot() +
+  geom_point(
+    data = global_temps,
+    aes(
+      x = year,
+      y = temperature
+    ), 
+    show.legend = FALSE,
+    size = 1.5,
+    alpha = 1,
+    shape = 1
+  ) +
+  theme_light() +
+  labs(
+    x = NULL,
+    y = "Deviation from mean temperature (Celsius)"
+  ) +
+  facet_wrap(~ month) +
+  geom_function(
+    data = global_temp_quad,
+    color = "red",
+    alpha = 0.7,
+    show.legend = FALSE,
+    fun = function(x) {
+      global_temp_quad$intercept +
+      global_temp_quad$year * x +
+      global_temp_quad$year_2 * x^2
+    }
+  ) +
+  theme(
+    panel.grid.minor = element_blank(),
+    panel.grid.major.y = element_blank(),
+    panel.grid.major.x = element_blank()
+  ) +
+  scale_x_continuous(
+    breaks = seq(1890, 2020, 40)
+  )
+
+ggsave(
+  "temp_year_all_months_quadratic_function.jpg",
+  height = 5,
+  width = 8,
+  dpi = 300
+)
+```
