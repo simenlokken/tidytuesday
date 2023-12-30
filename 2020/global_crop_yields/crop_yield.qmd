@@ -77,7 +77,8 @@ yields_tidy <- yields_tidy |>
     c(
       wheat_tonnes_per_hectare,
       potatoes_tonnes_per_hectare,
-      barley_tonnes_per_hectare
+      barley_tonnes_per_hectare,
+      rice_tonnes_per_hectare
     ),
     names_to = "crop",
     values_to = "yield"
@@ -129,7 +130,7 @@ yields_tidy |>
     x = NULL,
     y = "Crop yields (tonnes per hectare)",
     color = "Crop",
-    title = "Barley, potato and wheat yield from 1980-2021",
+    title = "Barley, potato, wheat yield from 1980-2021",
     subtitle = "Data from the twelve most populous countries in the world"
   ) +
   theme_light() +

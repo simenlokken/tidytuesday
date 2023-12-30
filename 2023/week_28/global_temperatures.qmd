@@ -189,6 +189,13 @@ global_temps_lm |>
   theme(
     panel.grid.minor = element_blank()
   )
+
+ggsave(
+  "beta_estimate_for_each_month.jpg",
+  height = 5,
+  width = 8,
+  dpi = 300
+)
 ```
 
 ```{r}
