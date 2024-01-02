@@ -59,14 +59,11 @@ global_temps <- global_temps |>
 
 # Order months
 
-month_order <- c(
-  "Jan", "Feb", "Mar", "Apr", "May", "Jun", 
-  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
-)
+month_names <- month.name
 
 global_temps <- global_temps |> 
   mutate(
-    month = factor(month, levels = month_order)
+    month = factor(month, levels = unique(month), labels = month_names)
   )
 ```
 
@@ -214,23 +211,15 @@ ggplot() +
     alpha = 1,
     shape = 1
   ) +
-  theme_light() +
+  theme_classic() +
   labs(
+    title = "Global surface temperatures (1880-2023)",
+    subtitle = "Temperature is computed as deviation from the mean temperature between 1951-1980",
+    caption = "Data: NASA/GISS",
     x = NULL,
-    y = "Deviation from mean temperature (Celsius)"
+    y = "Temperature difference (Celsius)"
   ) +
   facet_wrap(~ month) +
-  geom_function(
-    data = global_temp_quad,
-    color = "red",
-    alpha = 0.7,
-    show.legend = FALSE,
-    fun = function(x) {
-      global_temp_quad$intercept +
-      global_temp_quad$year * x +
-      global_temp_quad$year_2 * x^2
-    }
-  ) +
   theme(
     panel.grid.minor = element_blank(),
     panel.grid.major.y = element_blank(),
@@ -242,6 +231,18 @@ ggplot() +
   ) +
   scale_y_continuous(
     limits = c(-0.5, 1.5)
+  ) +
+  geom_smooth(
+    data = global_temps,
+    aes(
+      x = year,
+      y = temperature
+    ),
+    method = "lm",
+    formula = y ~ poly(x, 2),
+    se = FALSE,
+    color = "dodgerblue",
+    size = 0.7
   )
 
 ggsave(
